@@ -3,7 +3,6 @@ import cron from "node-cron";
 import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import http from 'http';
 import ngrok from '@ngrok/ngrok';
 
 // Mail reader import
@@ -28,6 +27,7 @@ import dashboardStatsRoute from "./api/dashboard/stats/route";
 import usersRoute from "./api/users/route";
 import userByIdRoute from "./api/users/[id]/route";
 
+require('@dotenvx/dotenvx').config()
 dotenv.config();
 
 const app = express();
@@ -74,7 +74,7 @@ app.use("/api/cron/fetch-emails", fetchEmailsRoute);
 //Dashboard Stats
 app.use("/api/dashboard/stats", dashboardStatsRoute);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -84,21 +84,24 @@ if (!MONGODB_URI) {
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
-    console.log("MongoDB connected");
-    app.listen(PORT, () => {
+    console.log("Database connected");
+
+    // port listener
+    app.listen(PORT, async () => {
       console.log(`Server running on http://localhost:${PORT}`);
+
+      // Start ngrok tunnel AFTER server starts
+      if (process.env.NGROK_AUTHTOKEN) {
+        const listener = await ngrok.connect({
+          addr: PORT,
+          authtoken: process.env.NGROK_AUTHTOKEN,
+        });
+        console.log(`Public URL: ${listener.url()}`);
+      } else {
+        console.log("NGROK_AUTHTOKEN not set, skipping ngrok tunnel.");
+      }
     });
   })
   .catch((err) => {
     console.error("MongoDB connection error:", err);
   });
-
-// Create webserver
-http.createServer((_req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end('Congrats you have created an ngrok web server');
-}).listen(8080, () => console.log('Node.js web server at 8080 is running...'));
-
-// Get your endpoint online
-ngrok.connect({ addr: 8080, authtoken_from_env: true })
-  .then(listener => console.log(`Ingress established at: ${listener.url()}`));
